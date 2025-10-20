@@ -69,7 +69,9 @@ namespace SmartHome.Dienste
                     int anzahl = Eingabe.LiesGanzzahl($"    Anzahl {name}", 0, max);
                     for (int n = 0; n < anzahl; n++)
                     {
-                        raum.Geraete.Add(new Geraete { TypAbk = abk, TypName = name, Name = "" });
+                        var g = new Geraete { TypAbk = abk, TypName = name, Name = "" };
+                        Katalog.SetzeStandardZustand(g);
+                        raum.Geraete.Add(g);
                     }
                 }
             }
@@ -80,7 +82,6 @@ namespace SmartHome.Dienste
             foreach (var raum in einrichtung.Raeume)
             {
                 Console.WriteLine($"  Raum {raum.RaumName} ({raum.RaumAbk})");
-                // gruppiert nach Typen in der definierten Reihenfolge
                 foreach (var kv in Katalog.Geraetetypen)
                 {
                     var abk = kv.Key;

@@ -13,6 +13,8 @@ class Program
         Landesformat.SetzeDeutsch();
 
         var speicher = new SpeicherDienst();
+        var verlauf = new VerlaufDienst();
+
         Einrichtung einrichtung = speicher.Laden() ?? new Einrichtung();
 
         if (einrichtung.Raeume.Count == 0)
@@ -21,7 +23,7 @@ class Program
             einrichtung = assistent.Starte();
         }
 
-        var hauptmenue = new Hauptmenue(speicher);
+        var hauptmenue = new Hauptmenue(speicher, verlauf);
         hauptmenue.Start(einrichtung);
     }
 }
