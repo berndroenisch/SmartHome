@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using SmartHome.Daten;
 using SmartHome.Helfer;
 using SmartHome.Typ;
@@ -9,12 +10,10 @@ namespace SmartHome.Menue
     public class Hauptmenue
     {
         private readonly SpeicherDienst _speicher;
-        private readonly VerlaufDienst _verlauf;
 
-        public Hauptmenue(SpeicherDienst speicher, VerlaufDienst verlauf)
+        public Hauptmenue(SpeicherDienst speicher)
         {
             _speicher = speicher;
-            _verlauf = verlauf;
         }
 
         public void Start(Einrichtung einrichtung)
@@ -25,30 +24,17 @@ namespace SmartHome.Menue
                 Ueberschrift();
 
                 Console.WriteLine("1) Einrichtung ansehen/bearbeiten");
-                Console.WriteLine("2) Manuelle Steuerung");
-                Console.WriteLine("3) Verlauf ansehen/filtern");
-                Console.WriteLine("x) Einrichtung zurücksetzen (alle Daten werden gelöscht!)"); // vorletzte Stelle
+                Console.WriteLine("2) Einrichtung zurücksetzen (alle Daten werden gelöscht!)");
                 Console.WriteLine("0) Beenden");
                 Console.Write("Auswahl: ");
                 var wahl = (Console.ReadLine() ?? "").Trim();
 
-                if (wahl == "0")
-                {
-                    break;
-                }
-                else if (wahl == "1")
+                if (wahl == "0") break;
+                if (wahl == "1")
                 {
                     new UntermenueEinrichtung(_speicher).Start(einrichtung);
                 }
                 else if (wahl == "2")
-                {
-                    new ManuelleSteuerungMenue(_speicher, _verlauf).Start(einrichtung);
-                }
-                else if (wahl == "3")
-                {
-                    new VerlaufMenue(_verlauf).Start(einrichtung);
-                }
-                else if (string.Equals(wahl, "x", StringComparison.OrdinalIgnoreCase))
                 {
                     EinrichtungZuruecksetzen(einrichtung);
                 }
@@ -78,14 +64,10 @@ namespace SmartHome.Menue
 
             if (bestaetigung == "Reset")
             {
-                // Einrichtung leeren
+                // Bestehende Einrichtung leeren und speichern
                 e.Raeume.Clear();
                 _speicher.Speichern(e);
-
-                // Verlauf löschen
-                _verlauf.Leeren();
-
-                Console.WriteLine("Einrichtung und Verlauf wurden zurückgesetzt. Der Einrichtungsassistent startet nun neu.");
+                Console.WriteLine("Einrichtung wurde zurückgesetzt. Der Einrichtungsassistent startet nun neu.");
 
                 // Einrichtungsassistent erneut starten
                 var assistent = new EinrichtungsAssistent(_speicher);

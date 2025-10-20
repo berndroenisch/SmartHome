@@ -274,9 +274,7 @@ namespace SmartHome.Menue
                     int diff = neu - aktuell;
                     for (int i = 0; i < diff; i++)
                     {
-                        var g = new Geraete { TypAbk = abk, TypName = name, Name = "" };
-                        Katalog.SetzeStandardZustand(g);
-                        raum.Geraete.Add(g);
+                        raum.Geraete.Add(new Geraete { TypAbk = abk, TypName = name, Name = "" });
                     }
                 }
                 else if (neu < aktuell)

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Globalization;
 
 namespace SmartHome.Helfer
 {
@@ -41,30 +40,6 @@ namespace SmartHome.Helfer
                     return s;
                 Console.WriteLine("Bitte einen Wert eingeben.");
             }
-        }
-
-        public static DateTime? LiesOptionalesDatum(string prompt)
-        {
-            Console.Write($"{prompt} (DD.MM.YYYY, leer = kein Filter): ");
-            var s = (Console.ReadLine() ?? "").Trim();
-            if (string.IsNullOrEmpty(s)) return null;
-            if (DateTime.TryParseExact(s, "dd.MM.yyyy", CultureInfo.GetCultureInfo("de-DE"), DateTimeStyles.None, out var d))
-                return d.Date;
-            Console.WriteLine("Ungültiges Datum. Filter wird ignoriert.");
-            return null;
-        }
-
-        public static TimeSpan? LiesOptionaleUhrzeit(string prompt)
-        {
-            Console.Write($"{prompt} (HH:MM, leer = kein Filter): ");
-            var s = (Console.ReadLine() ?? "").Trim();
-            if (string.IsNullOrEmpty(s)) return null;
-            if (TimeSpan.TryParseExact(s, "hh\\:mm", CultureInfo.InvariantCulture, out var t))
-                return t;
-            if (TimeSpan.TryParse(s, out t))
-                return t;
-            Console.WriteLine("Ungültige Uhrzeit. Filter wird ignoriert.");
-            return null;
         }
 
         public static void WeiterMitTaste()
