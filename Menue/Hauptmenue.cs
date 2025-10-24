@@ -10,11 +10,17 @@ namespace SmartHome.Menue
     {
         private readonly SpeicherDienst _speicher;
         private readonly VerlaufDienst _verlauf;
+        private readonly ZeitplanDienst _zeitplan;
+        private readonly MakroDienst _makros;
+        private readonly SteuerungsDienst _steuerung;
 
-        public Hauptmenue(SpeicherDienst speicher, VerlaufDienst verlauf)
+        public Hauptmenue(SpeicherDienst speicher, VerlaufDienst verlauf, ZeitplanDienst zeitplan, MakroDienst makros, SteuerungsDienst steuerung)
         {
             _speicher = speicher;
             _verlauf = verlauf;
+            _zeitplan = zeitplan;
+            _makros = makros;
+            _steuerung = steuerung;
         }
 
         public void Start(Einrichtung einrichtung)
@@ -26,8 +32,10 @@ namespace SmartHome.Menue
 
                 Console.WriteLine("1) Einrichtung ansehen/bearbeiten");
                 Console.WriteLine("2) Manuelle Steuerung");
-                Console.WriteLine("3) Verlauf ansehen/filtern");
-                Console.WriteLine("x) Einrichtung zurücksetzen (alle Daten werden gelöscht!)"); // vorletzte Stelle
+                Console.WriteLine("3) Makrogerätesteuerung");
+                Console.WriteLine("4) Zeitgesteuerte Schaltung");
+                Console.WriteLine("5) Verlauf ansehen/filtern");
+                Console.WriteLine("x) Einrichtung zurücksetzen (alle Daten werden gelöscht!)");
                 Console.WriteLine("0) Beenden");
                 Console.Write("Auswahl: ");
                 var wahl = (Console.ReadLine() ?? "").Trim();
@@ -42,9 +50,17 @@ namespace SmartHome.Menue
                 }
                 else if (wahl == "2")
                 {
-                    new ManuelleSteuerungMenue(_speicher, _verlauf).Start(einrichtung);
+                    new ManuelleSteuerungMenue(_speicher, _verlauf, _makros, _steuerung).Start(einrichtung);
                 }
                 else if (wahl == "3")
+                {
+                    new MakroMenue(_makros, _steuerung, _speicher).Start(einrichtung);
+                }
+                else if (wahl == "4")
+                {
+                    new ZeitsteuerungMenue(_zeitplan, _makros, _steuerung, _speicher).Start(einrichtung);
+                }
+                else if (wahl == "5")
                 {
                     new VerlaufMenue(_verlauf).Start(einrichtung);
                 }
@@ -85,13 +101,17 @@ namespace SmartHome.Menue
                 // Verlauf löschen
                 _verlauf.Leeren();
 
-                Console.WriteLine("Einrichtung und Verlauf wurden zurückgesetzt. Der Einrichtungsassistent startet nun neu.");
+                // Zeitpläne und Makros automatisch komplett löschen
+                _zeitplan.Leeren();
+                _makros.Leeren();
+
+                Console.WriteLine("Einrichtung, Verlauf, Zeitpläne und Makros wurden zurückgesetzt. Der Einrichtungsassistent startet nun neu.");
 
                 // Einrichtungsassistent erneut starten
                 var assistent = new EinrichtungsAssistent(_speicher);
                 var neu = assistent.Starte();
 
-                // Neue Daten in das bestehende Objekt übernehmen (Referenzen erhalten)
+                // Neue Daten übernehmen (Referenz von e beibehalten)
                 e.Raeume.Clear();
                 e.Raeume.AddRange(neu.Raeume);
 

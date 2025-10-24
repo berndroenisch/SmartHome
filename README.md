@@ -11,3 +11,7 @@ Heizkörpertemperatur 12-28 Grad Celsius und
 Rollläden Schließstellung 0-100% hinzufügen.  
 Manuelle Schaltung der Geräte ermöglichen.  
 Verlaufsübersicht erstellen.  
+
+<ins>Tag 5 24.10.2025</ins>  
+Makro Schaltung für Geräte hinzufügen.  
+Zeitplaner für die Geräte erstellen.  

@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Linq;
+using System.Collections.Generic;
 using SmartHome.Daten;
 using SmartHome.Helfer;
 using SmartHome.Typ;
+using SmartHome.Dienste;
 
 namespace SmartHome.Menue
 {
@@ -10,11 +12,15 @@ namespace SmartHome.Menue
     {
         private readonly SpeicherDienst _speicher;
         private readonly VerlaufDienst _verlauf;
+        private readonly MakroDienst _makros;
+        private readonly SteuerungsDienst _steuerung;
 
-        public ManuelleSteuerungMenue(SpeicherDienst speicher, VerlaufDienst verlauf)
+        public ManuelleSteuerungMenue(SpeicherDienst speicher, VerlaufDienst verlauf, MakroDienst makros, SteuerungsDienst steuerung)
         {
             _speicher = speicher;
             _verlauf = verlauf;
+            _makros = makros;
+            _steuerung = steuerung;
         }
 
         public void Start(Einrichtung e)
@@ -23,24 +29,73 @@ namespace SmartHome.Menue
             {
                 Console.Clear();
                 Console.WriteLine("Manuelle Steuerung - Raum wählen");
-                if (e.Raeume.Count == 0)
+
+                var raeume = new List<(string Name, string Abk)>(e.Raeume.Select(r => (r.RaumName, r.RaumAbk)));
+                var makroListe = _makros.Laden();
+                bool hatMakros = makroListe.Count > 0;
+                if (hatMakros)
+                {
+                    raeume.Add(("Makrogeräte", "MG"));
+                }
+
+                if (raeume.Count == 0)
                 {
                     Console.WriteLine("Keine Räume vorhanden.");
                     Eingabe.WeiterMitTaste();
                     return;
                 }
 
-                for (int i = 0; i < e.Raeume.Count; i++)
+                for (int i = 0; i < raeume.Count; i++)
                 {
-                    var r = e.Raeume[i];
-                    Console.WriteLine($"{i + 1}) {r.RaumName} ({r.RaumAbk})");
+                    Console.WriteLine($"{i + 1}) {raeume[i].Name} ({raeume[i].Abk})");
                 }
                 Console.WriteLine("0) Zurück");
-                int auswahl = Eingabe.LiesGanzzahl("Auswahl", 0, e.Raeume.Count);
+                int auswahl = Eingabe.LiesGanzzahl("Auswahl", 0, raeume.Count);
                 if (auswahl == 0) return;
 
-                var raum = e.Raeume[auswahl - 1];
-                GeraetetypWaehlen(e, raum);
+                var raumEintrag = raeume[auswahl - 1];
+                if (raumEintrag.Abk == "MG")
+                {
+                    SteuereMakro(makroListe);
+                }
+                else
+                {
+                    var raum = e.Raeume.First(r => r.RaumAbk == raumEintrag.Abk);
+                    GeraetetypWaehlen(e, raum);
+                }
+            }
+        }
+
+        private void SteuereMakro(List<Makro> alleMakros)
+        {
+            while (true)
+            {
+                Console.Clear();
+                Console.WriteLine("Makrogeräte (MG) - Makro wählen");
+                if (alleMakros.Count == 0)
+                {
+                    Console.WriteLine("Keine Makros vorhanden.");
+                    Eingabe.WeiterMitTaste();
+                    return;
+                }
+                for (int i = 0; i < alleMakros.Count; i++)
+                    Console.WriteLine($"{i + 1}) {alleMakros[i].Name}");
+                Console.WriteLine("0) Zurück");
+                int sel = Eingabe.LiesGanzzahl("Auswahl", 0, alleMakros.Count);
+                if (sel == 0) return;
+
+                var makro = alleMakros[sel - 1];
+                Console.WriteLine($"Makro '{makro.Name}' starten?");
+                Console.WriteLine("1) Starten");
+                Console.WriteLine("0) Zurück");
+                int w = Eingabe.LiesGanzzahl("Auswahl", 0, 1);
+                if (w == 1)
+                {
+                    var e = _speicher.Laden() ?? new Einrichtung();
+                    _steuerung.FuehreMakroAus(e, makro);
+                    ZeigeBestaetigung("Makro gestartet (läuft im Hintergrund).");
+                }
+                else if (w == 0) return;
             }
         }
 
@@ -102,7 +157,7 @@ namespace SmartHome.Menue
                 if (auswahl == 0) return;
 
                 var geraet = liste[auswahl - 1];
-                SteuereGeraet(e, raum, geraet);
+                SteuereGeraet(_speicher.Laden() ?? e, raum, geraet);
             }
         }
 
@@ -133,25 +188,29 @@ namespace SmartHome.Menue
                 bool ein = g.Ein ?? false;
                 int dim = g.DimProzent ?? 100;
                 Console.WriteLine($"Leuchte: {Katalog.Geraetebezeichnung(raum.RaumAbk, g.TypAbk, g.Name)}");
-                Console.WriteLine($"Status: {(ein ? "Ein" : "Aus")}, Helligkeit: {dim}% (5..100)");
-                Console.WriteLine("1) Ein/Aus umschalten");
-                Console.WriteLine("2) Helligkeit anpassen");
+                Console.WriteLine($"Status: {(ein ? "Ein" : "Aus")}, Helligkeit: {dim}% (5-100)");
+                Console.WriteLine("1) Einschalten");
+                Console.WriteLine("2) Ausschalten");
+                Console.WriteLine("3) Helligkeit anpassen");
                 Console.WriteLine("0) Zurück");
-                int w = Eingabe.LiesGanzzahl("Auswahl", 0, 2);
+                int w = Eingabe.LiesGanzzahl("Auswahl", 0, 3);
                 if (w == 0) return;
 
                 if (w == 1)
                 {
-                    g.Ein = !ein; // Dim bleibt unverändert
-                    Protokolliere(raum, g, "Ein/Aus", g.Ein == true ? "Ein" : "Aus");
-                    _speicher.Speichern(e);
+                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raum.RaumAbk, g.TypAbk, g.Name, GeraeteAktion.SetOn, null, "manuell");
+                    ZeigeBestaetigung(ok ? "Eingeschaltet." : "Aktion fehlgeschlagen.");
                 }
                 else if (w == 2)
                 {
-                    int neu = Eingabe.LiesGanzzahl("Neue Helligkeit", 5, 100);
-                    g.DimProzent = Katalog.BegrenztProzent(neu, 5, 100);
-                    Protokolliere(raum, g, "Helligkeit angepasst", $"{g.DimProzent}%");
-                    _speicher.Speichern(e);
+                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raum.RaumAbk, g.TypAbk, g.Name, GeraeteAktion.SetOff, null, "manuell");
+                    ZeigeBestaetigung(ok ? "Ausgeschaltet." : "Aktion fehlgeschlagen.");
+                }
+                else if (w == 3)
+                {
+                    int neu = Eingabe.LiesGanzzahl("Neue Helligkeit in %", 5, 100);
+                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raum.RaumAbk, g.TypAbk, g.Name, GeraeteAktion.SetDim, neu, "manuell");
+                    ZeigeBestaetigung(ok ? $"Helligkeit auf {neu}% gesetzt." : "Aktion fehlgeschlagen.");
                 }
             }
         }
@@ -165,7 +224,7 @@ namespace SmartHome.Menue
                 double temp = Katalog.TemperaturFuerStufe(stufe);
                 Console.WriteLine($"Heizkörper: {Katalog.Geraetebezeichnung(raum.RaumAbk, g.TypAbk, g.Name)}");
                 Console.WriteLine($"Stufe: {stufe} -> {temp} °C");
-                Console.WriteLine("1) Stufe anpassen (0..5)(0 (Frostsicherung) = 5°C, 1 = 12°C, 2 = 16°C, 3 = 20°C, 4 = 24°C, 5 = 28°C)");
+                Console.WriteLine("1) Stufe anpassen (0-5)(0 (Frostsicherung) = 5°C, 1 = 12°C, 2 = 16°C, 3 = 20°C, 4 = 24°C, 5 = 28°C)");
                 Console.WriteLine("0) Zurück");
                 int w = Eingabe.LiesGanzzahl("Auswahl", 0, 1);
                 if (w == 0) return;
@@ -173,10 +232,8 @@ namespace SmartHome.Menue
                 if (w == 1)
                 {
                     int neu = Eingabe.LiesGanzzahl("Neue Stufe", 0, 5);
-                    g.Stufe = neu;
-                    g.Temperatur = Katalog.TemperaturFuerStufe(neu);
-                    Protokolliere(raum, g, "Temp. angepasst", $"Stufe {neu} ({g.Temperatur:0.#} °C)");
-                    _speicher.Speichern(e);
+                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raum.RaumAbk, g.TypAbk, g.Name, GeraeteAktion.SetStage, neu, "manuell");
+                    ZeigeBestaetigung(ok ? $"Stufe {neu} ({Katalog.TemperaturFuerStufe(neu):0.#} °C) gesetzt." : "Aktion fehlgeschlagen.");
                 }
             }
         }
@@ -189,16 +246,21 @@ namespace SmartHome.Menue
                 bool ein = g.Ein ?? false;
                 Console.WriteLine($"Steckdose: {Katalog.Geraetebezeichnung(raum.RaumAbk, g.TypAbk, g.Name)}");
                 Console.WriteLine($"Status: {(ein ? "Ein" : "Aus")}");
-                Console.WriteLine("1) Ein/Aus umschalten");
+                Console.WriteLine("1) Einschalten");
+                Console.WriteLine("2) Ausschalten");
                 Console.WriteLine("0) Zurück");
-                int w = Eingabe.LiesGanzzahl("Auswahl", 0, 1);
+                int w = Eingabe.LiesGanzzahl("Auswahl", 0, 2);
                 if (w == 0) return;
 
                 if (w == 1)
                 {
-                    g.Ein = !ein;
-                    Protokolliere(raum, g, "Ein/Aus", g.Ein == true ? "Ein" : "Aus");
-                    _speicher.Speichern(e);
+                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raum.RaumAbk, g.TypAbk, g.Name, GeraeteAktion.SetOn, null, "manuell");
+                    ZeigeBestaetigung(ok ? "Eingeschaltet." : "Aktion fehlgeschlagen.");
+                }
+                else if (w == 2)
+                {
+                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raum.RaumAbk, g.TypAbk, g.Name, GeraeteAktion.SetOff, null, "manuell");
+                    ZeigeBestaetigung(ok ? "Ausgeschaltet." : "Aktion fehlgeschlagen.");
                 }
             }
         }
@@ -211,35 +273,25 @@ namespace SmartHome.Menue
                 int pos = g.PositionProzent ?? 0;
                 Console.WriteLine($"Rollladen: {Katalog.Geraetebezeichnung(raum.RaumAbk, g.TypAbk, g.Name)}");
                 Console.WriteLine($"Schließstellung: {pos}% (0% oben, 100% geschlossen)");
-                Console.WriteLine("1) Schließstellung anpassen (0..100)%");
+                Console.WriteLine("1) Schließstellung anpassen (0-100)%");
                 Console.WriteLine("0) Zurück");
                 int w = Eingabe.LiesGanzzahl("Auswahl", 0, 1);
                 if (w == 0) return;
 
                 if (w == 1)
                 {
-                    int neu = Eingabe.LiesGanzzahl("Neue Stellung", 0, 100);
-                    g.PositionProzent = Katalog.BegrenztProzent(neu, 0, 100);
-                    Protokolliere(raum, g, "Schließstellung angepasst", $"Position {g.PositionProzent}%");
-                    _speicher.Speichern(e);
+                    int neu = Eingabe.LiesGanzzahl("Neue Stellung in %", 0, 100);
+                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raum.RaumAbk, g.TypAbk, g.Name, GeraeteAktion.SetPosition, neu, "manuell");
+                    ZeigeBestaetigung(ok ? $"Schließstellung auf {neu}% gesetzt." : "Aktion fehlgeschlagen.");
                 }
             }
         }
 
-        private void Protokolliere(Raum raum, Geraete g, string aktion, string wert)
+        private void ZeigeBestaetigung(string text)
         {
-            var eintrag = new Verlaufseintrag
-            {
-                Zeitpunkt = DateTime.Now,
-                Ausloeser = "manuell",
-                RaumAbk = raum.RaumAbk,
-                TypAbk = g.TypAbk,
-                Geraetename = g.Name,
-                Aktion = aktion,
-                Wert = wert,
-                Bezeichnung = Katalog.Geraetebezeichnung(raum.RaumAbk, g.TypAbk, g.Name)
-            };
-            _verlauf.Hinzufuegen(eintrag);
+            Console.WriteLine();
+            Console.WriteLine($"OK: {text}");
+            Eingabe.WeiterMitTaste();
         }
     }
 }
