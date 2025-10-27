@@ -15,3 +15,7 @@ Verlaufsübersicht erstellen.
 <ins>Tag 5 24.10.2025</ins>  
 Makro Schaltung für Geräte hinzufügen.  
 Zeitplaner für die Geräte erstellen.  
+
+<ins>Tag 6 27.10.2025</ins>  
+Feinarbeiten, ggfs. Fehlerkorrektur, Probeläufe.  
+  
