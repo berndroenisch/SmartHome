@@ -180,14 +180,40 @@ namespace SmartHome.Menue
             }
         }
 
+        // Lädt vor jeder Anzeige den aktuellen Zustand neu aus dem Speicher, ermittelt Raum und Gerät frisch
+        private (Raum? raum, Geraete? g) LadeAktuellenZustand(string raumAbk, string typAbk, string geraetename, ref Einrichtung e)
+        {
+            var geladen = _speicher.Laden();
+            if (geladen != null) e = geladen; // innerhalb der Methode mit neuem Objekt weiterarbeiten
+            var r = e.Raeume.FirstOrDefault(x => x.RaumAbk.Equals(raumAbk, StringComparison.OrdinalIgnoreCase));
+            var gg = r?.Geraete.FirstOrDefault(x =>
+                x.TypAbk.Equals(typAbk, StringComparison.OrdinalIgnoreCase) &&
+                x.Name.Equals(geraetename, StringComparison.OrdinalIgnoreCase));
+            return (r, gg);
+        }
+
         private void SteuereLeuchte(Einrichtung e, Raum raum, Geraete g)
         {
+            // Schlüssel einmal festhalten
+            string raumAbk = raum.RaumAbk;
+            string typAbk = g.TypAbk;
+            string name = g.Name;
+
             while (true)
             {
+                // Zustand frisch laden
+                var (rNow, gNow) = LadeAktuellenZustand(raumAbk, typAbk, name, ref e);
+                if (rNow == null || gNow == null)
+                {
+                    Console.WriteLine("Das Gerät ist nicht mehr verfügbar.");
+                    Eingabe.WeiterMitTaste();
+                    return;
+                }
+
                 Console.Clear();
-                bool ein = g.Ein ?? false;
-                int dim = g.DimProzent ?? 100;
-                Console.WriteLine($"Leuchte: {Katalog.Geraetebezeichnung(raum.RaumAbk, g.TypAbk, g.Name)}");
+                bool ein = gNow.Ein ?? false;
+                int dim = gNow.DimProzent ?? 100;
+                Console.WriteLine($"Leuchte: {Katalog.Geraetebezeichnung(rNow.RaumAbk, gNow.TypAbk, gNow.Name)}");
                 Console.WriteLine($"Status: {(ein ? "Ein" : "Aus")}, Helligkeit: {dim}% (5-100)");
                 Console.WriteLine("1) Einschalten");
                 Console.WriteLine("2) Ausschalten");
@@ -198,18 +224,18 @@ namespace SmartHome.Menue
 
                 if (w == 1)
                 {
-                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raum.RaumAbk, g.TypAbk, g.Name, GeraeteAktion.SetOn, null, "manuell");
+                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raumAbk, typAbk, name, GeraeteAktion.SetOn, null, "manuell");
                     ZeigeBestaetigung(ok ? "Eingeschaltet." : "Aktion fehlgeschlagen.");
                 }
                 else if (w == 2)
                 {
-                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raum.RaumAbk, g.TypAbk, g.Name, GeraeteAktion.SetOff, null, "manuell");
+                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raumAbk, typAbk, name, GeraeteAktion.SetOff, null, "manuell");
                     ZeigeBestaetigung(ok ? "Ausgeschaltet." : "Aktion fehlgeschlagen.");
                 }
                 else if (w == 3)
                 {
                     int neu = Eingabe.LiesGanzzahl("Neue Helligkeit in %", 5, 100);
-                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raum.RaumAbk, g.TypAbk, g.Name, GeraeteAktion.SetDim, neu, "manuell");
+                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raumAbk, typAbk, name, GeraeteAktion.SetDim, neu, "manuell");
                     ZeigeBestaetigung(ok ? $"Helligkeit auf {neu}% gesetzt." : "Aktion fehlgeschlagen.");
                 }
             }
@@ -217,12 +243,24 @@ namespace SmartHome.Menue
 
         private void SteuereHeizkoerper(Einrichtung e, Raum raum, Geraete g)
         {
+            string raumAbk = raum.RaumAbk;
+            string typAbk = g.TypAbk;
+            string name = g.Name;
+
             while (true)
             {
+                var (rNow, gNow) = LadeAktuellenZustand(raumAbk, typAbk, name, ref e);
+                if (rNow == null || gNow == null)
+                {
+                    Console.WriteLine("Das Gerät ist nicht mehr verfügbar.");
+                    Eingabe.WeiterMitTaste();
+                    return;
+                }
+
                 Console.Clear();
-                int stufe = g.Stufe ?? 3;
+                int stufe = gNow.Stufe ?? 3;
                 double temp = Katalog.TemperaturFuerStufe(stufe);
-                Console.WriteLine($"Heizkörper: {Katalog.Geraetebezeichnung(raum.RaumAbk, g.TypAbk, g.Name)}");
+                Console.WriteLine($"Heizkörper: {Katalog.Geraetebezeichnung(rNow.RaumAbk, gNow.TypAbk, gNow.Name)}");
                 Console.WriteLine($"Stufe: {stufe} -> {temp} °C");
                 Console.WriteLine("1) Stufe anpassen (0-5)(0 (Frostsicherung) = 5°C, 1 = 12°C, 2 = 16°C, 3 = 20°C, 4 = 24°C, 5 = 28°C)");
                 Console.WriteLine("0) Zurück");
@@ -232,7 +270,7 @@ namespace SmartHome.Menue
                 if (w == 1)
                 {
                     int neu = Eingabe.LiesGanzzahl("Neue Stufe", 0, 5);
-                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raum.RaumAbk, g.TypAbk, g.Name, GeraeteAktion.SetStage, neu, "manuell");
+                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raumAbk, typAbk, name, GeraeteAktion.SetStage, neu, "manuell");
                     ZeigeBestaetigung(ok ? $"Stufe {neu} ({Katalog.TemperaturFuerStufe(neu):0.#} °C) gesetzt." : "Aktion fehlgeschlagen.");
                 }
             }
@@ -240,11 +278,23 @@ namespace SmartHome.Menue
 
         private void SteuereSteckdose(Einrichtung e, Raum raum, Geraete g)
         {
+            string raumAbk = raum.RaumAbk;
+            string typAbk = g.TypAbk;
+            string name = g.Name;
+
             while (true)
             {
+                var (rNow, gNow) = LadeAktuellenZustand(raumAbk, typAbk, name, ref e);
+                if (rNow == null || gNow == null)
+                {
+                    Console.WriteLine("Das Gerät ist nicht mehr verfügbar.");
+                    Eingabe.WeiterMitTaste();
+                    return;
+                }
+
                 Console.Clear();
-                bool ein = g.Ein ?? false;
-                Console.WriteLine($"Steckdose: {Katalog.Geraetebezeichnung(raum.RaumAbk, g.TypAbk, g.Name)}");
+                bool ein = gNow.Ein ?? false;
+                Console.WriteLine($"Steckdose: {Katalog.Geraetebezeichnung(rNow.RaumAbk, gNow.TypAbk, gNow.Name)}");
                 Console.WriteLine($"Status: {(ein ? "Ein" : "Aus")}");
                 Console.WriteLine("1) Einschalten");
                 Console.WriteLine("2) Ausschalten");
@@ -254,12 +304,12 @@ namespace SmartHome.Menue
 
                 if (w == 1)
                 {
-                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raum.RaumAbk, g.TypAbk, g.Name, GeraeteAktion.SetOn, null, "manuell");
+                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raumAbk, typAbk, name, GeraeteAktion.SetOn, null, "manuell");
                     ZeigeBestaetigung(ok ? "Eingeschaltet." : "Aktion fehlgeschlagen.");
                 }
                 else if (w == 2)
                 {
-                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raum.RaumAbk, g.TypAbk, g.Name, GeraeteAktion.SetOff, null, "manuell");
+                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raumAbk, typAbk, name, GeraeteAktion.SetOff, null, "manuell");
                     ZeigeBestaetigung(ok ? "Ausgeschaltet." : "Aktion fehlgeschlagen.");
                 }
             }
@@ -267,11 +317,23 @@ namespace SmartHome.Menue
 
         private void SteuereRollladen(Einrichtung e, Raum raum, Geraete g)
         {
+            string raumAbk = raum.RaumAbk;
+            string typAbk = g.TypAbk;
+            string name = g.Name;
+
             while (true)
             {
+                var (rNow, gNow) = LadeAktuellenZustand(raumAbk, typAbk, name, ref e);
+                if (rNow == null || gNow == null)
+                {
+                    Console.WriteLine("Das Gerät ist nicht mehr verfügbar.");
+                    Eingabe.WeiterMitTaste();
+                    return;
+                }
+
                 Console.Clear();
-                int pos = g.PositionProzent ?? 0;
-                Console.WriteLine($"Rollladen: {Katalog.Geraetebezeichnung(raum.RaumAbk, g.TypAbk, g.Name)}");
+                int pos = gNow.PositionProzent ?? 0;
+                Console.WriteLine($"Rollladen: {Katalog.Geraetebezeichnung(rNow.RaumAbk, gNow.TypAbk, gNow.Name)}");
                 Console.WriteLine($"Schließstellung: {pos}% (0% oben, 100% geschlossen)");
                 Console.WriteLine("1) Schließstellung anpassen (0-100)%");
                 Console.WriteLine("0) Zurück");
@@ -281,7 +343,7 @@ namespace SmartHome.Menue
                 if (w == 1)
                 {
                     int neu = Eingabe.LiesGanzzahl("Neue Stellung in %", 0, 100);
-                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raum.RaumAbk, g.TypAbk, g.Name, GeraeteAktion.SetPosition, neu, "manuell");
+                    bool ok = _steuerung.FuehreGeraeteAktionAus(e, raumAbk, typAbk, name, GeraeteAktion.SetPosition, neu, "manuell");
                     ZeigeBestaetigung(ok ? $"Schließstellung auf {neu}% gesetzt." : "Aktion fehlgeschlagen.");
                 }
             }
