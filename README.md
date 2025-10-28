@@ -18,4 +18,7 @@ Zeitplaner für die Geräte erstellen.
 
 <ins>Tag 6 27.10.2025</ins>  
 Feinarbeiten, ggfs. Fehlerkorrektur, Probeläufe.  
+
+<ins>Tag 7 28.10.2025</ins>  
+SmartHomeDemo für Präsentation vorbereitet. Daten im original SmartHome zurückgesetzt.  
   
